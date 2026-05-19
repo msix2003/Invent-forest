@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a3d2b">
+<meta name="description" content="Aplicació d'inventari forestal PTGMF per Martí Solé i Xanxo">
+<title>Inventari Forestal PTGMF</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- SheetJS per exportar Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ============================================================
+   VARIABLES I RESET
+   ============================================================ */
+:root {
+  --v-fosc:  #1a3d2b;
+  --v-fosc2: #163424;
+  --v:       #2d6a4f;
+  --v-mig:   #40916c;
+  --v-clar:  #74c69d;
+  --v-pale:  #d8f3dc;
+  --err:     #c0392b;
+  --fons:    #f0f4f1;
+  --card:    #ffffff;
+  --text:    #1c2b22;
+  --suau:    #5a7060;
+  --borde:   #dce8df;
+  --r:       14px;
+  --sh:      0 2px 16px rgba(45,106,79,.12);
+  --ff-s:    'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+  --ff-m:    'DM Mono', 'Courier New', monospace;
+  --nav-h:   56px;
+  --tab-h:   60px;
+  --safe-b:  env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: var(--ff-s);
+  background: var(--fons);
+  color: var(--text);
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+input, select, textarea, button {
+  font-family: var(--ff-s);
+  -webkit-appearance: none;
+  appearance: none;
+}
+button { cursor: pointer; border: none; }
+
+/* ============================================================
+   LAYOUT APP
+   ============================================================ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* NAVBAR */
+.navbar {
+  background: var(--v-fosc);
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  z-index: 100;
+}
+.navbar-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  flex: 1;
+  text-align: center;
+}
+
+/* TABS CONTAINER */
+.tabs-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.tab-panel {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: none;
+  padding-bottom: calc(var(--tab-h) + var(--safe-b) + 20px);
+  -webkit-overflow-scrolling: touch;
+}
+.tab-panel.active { display: block; }
+
+/* TABBAR */
+.tabbar {
+  background: var(--v-fosc);
+  height: calc(var(--tab-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,.08);
+  z-index: 100;
+}
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: rgba(255,255,255,.45);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color .2s;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--ff-s);
+  letter-spacing: 0.3px;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-btn.active { color: var(--v-clar); }
+.tab-btn svg { width: 22px; height: 22px; }
+
+/* ============================================================
+   TIPOGRAFIA I COMPONENTS REUTILITZABLES
+   ============================================================ */
+.block-title {
+  color: var(--v);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  padding-left: 16px;
+  margin-top: 22px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.block-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 13px;
+  background: var(--v-mig);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* CARD */
+.card {
+  background: var(--card);
+  border-radius: var(--r);
+  border: 1px solid var(--borde);
+  box-shadow: var(--sh);
+  margin: 0 16px 16px;
+  overflow: hidden;
+}
+
+/* LIST */
+.list-group {
+  background: var(--card);
+  border-radius: var(--r);
+  border: 1px solid var(--borde);
+  margin: 0 16px 16px;
+  overflow: hidden;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--borde);
+  min-height: 52px;
+  gap: 10px;
+}
+.list-item:last-child { border-bottom: none; }
+.item-label {
+  font-size: 11px;
+  color: var(--suau);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  flex-shrink: 0;
+  min-width: 130px;
+}
+.item-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--ff-m);
+  outline: none;
+  text-align: right;
+  min-width: 0;
+}
+.item-select {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--ff-s);
+  outline: none;
+  text-align: right;
+  direction: rtl;
+  min-width: 0;
+  cursor: pointer;
+}
+.item-select option { direction: ltr; }
+
+/* SLIDER */
+.slider-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--borde);
+}
+.slider-row:last-child { border-bottom: none; }
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.slider-label {
+  font-size: 12px;
+  color: var(--suau);
+  font-weight: 600;
+}
+.slider-val {
+  font-size: 13px;
+  font-family: var(--ff-m);
+  font-weight: 700;
+  color: var(--v);
+}
+input[type=range] {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--v-pale);
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--v);
+  box-shadow: 0 2px 8px rgba(45,106,79,.4);
+  cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--v);
+  border: none;
+  box-shadow: 0 2px 8px rgba(45,106,79,.4);
+}
+
+/* TOGGLE */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--card);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  margin: 4px 16px 10px;
+}
+.toggle-labels { display: flex; flex-direction: column; }
+.toggle-main { font-size: 13px; font-weight: 600; color: var(--text); }
+.toggle-sub  { font-size: 11px; color: var(--suau); }
+.toggle-switch {
+  position: relative;
+  width: 51px;
+  height: 31px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #ccc;
+  border-radius: 31px;
+  transition: background .2s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 27px;
+  width: 27px;
+  left: 2px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: transform .2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--v-mig); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* BOTONS ACCIO */
+.btn-acc {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 7px 16px 15px;
+  padding: 15px;
+  border: none;
+  border-radius: 11px;
+  font-family: var(--ff-s);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-acc:active  { opacity: .82; transform: scale(.98); }
+.btn-danger      { background: var(--err); color: #fff; }
+.btn-add         { background: var(--v-mig); color: #fff; }
+.btn-disabled    { background: #9ca3af !important; color: #fff !important; cursor: not-allowed !important; opacity: .75; }
+.btn-outline     { background: #fff; color: var(--v-mig); border: 2px solid var(--v-mig); }
+
+/* MISSATGES */
+.msg-ok, .msg-err, .msg-inf {
+  border-radius: 9px;
+  padding: 10px 14px;
+  margin: 6px 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.msg-ok  { background: #d1fae5; border: 1px solid #6ee7b7; color: #065f46; }
+.msg-err { background: #fee2e2; border: 1px solid #fca5a5; color: #7f1d1d; }
+.msg-inf { background: #e0f2fe; border: 1px solid #7dd3fc; color: #0c4a6e; }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: calc(var(--tab-h) + var(--safe-b) + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--v-fosc);
+  color: var(--v-pale);
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  opacity: 0;
+  transition: opacity .3s, transform .3s;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ============================================================
+   DASHBOARD (TAB ARBRES)
+   ============================================================ */
+.dashboard {
+  margin: 10px 16px 16px;
+  background: linear-gradient(135deg, var(--v-fosc2) 0%, var(--v) 100%);
+  border-radius: var(--r);
+  padding: 16px;
+  box-shadow: 0 4px 20px rgba(26,61,43,.35);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+.dash-item { text-align: center; }
+.dash-val  { font-size: 26px; font-weight: 700; color: #fff; font-family: var(--ff-m); line-height: 1; }
+.dash-lbl  { font-size: 9px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; font-weight: 700; }
+.dash-sep  { width: 1px; height: 40px; background: rgba(255,255,255,.18); }
+
+/* ============================================================
+   DN INPUT I DRECERES
+   ============================================================ */
+.dn-wrapper { padding: 12px 16px 6px; }
+.dn-label   { font-size: 11px; color: var(--suau); font-weight: 700; text-transform: uppercase; letter-spacing: .9px; margin-bottom: 8px; }
+.dn-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 28px;
+  font-family: var(--ff-m);
+  font-weight: 500;
+  text-align: center;
+  color: var(--v-fosc);
+  background: var(--fons);
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color .2s, background .2s;
+  -webkit-appearance: none;
+}
+.dn-input:focus   { border-color: var(--v-mig); background: #fff; }
+.dn-input.invalid { border-color: var(--err); background: #fff5f5; }
+
+.dn-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
+  padding: 8px 16px 12px;
+}
+.dn-btn {
+  background: var(--v-pale);
+  color: var(--v-fosc);
+  border: 1.5px solid var(--v-clar);
+  border-radius: 9px;
+  padding: 9px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--ff-m);
+  cursor: pointer;
+  transition: background .15s, color .15s, transform .1s;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.dn-btn:active { background: var(--v-mig); color: #fff; transform: scale(.93); }
+
+/* ============================================================
+   TAULA ARBRES
+   ============================================================ */
+.taula-arb { width: 100%; border-collapse: collapse; font-size: 12px; }
+.taula-arb th {
+  background: var(--v);
+  color: #fff;
+  padding: 8px 6px;
+  font-weight: 700;
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  position: sticky;
+  top: 0;
+}
+.taula-arb td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--borde);
+  font-family: var(--ff-m);
+  color: var(--text);
+  font-size: 11.5px;
+}
+.taula-arb tr:nth-child(even) td { background: var(--fons); }
+.taula-arb tr:last-child td      { border-bottom: none; }
+
+/* ============================================================
+   TAB GUARDAR
+   ============================================================ */
+.resum-guard {
+  background: var(--card);
+  border: 1px solid var(--borde);
+  border-radius: var(--r);
+  margin: 0 16px 14px;
+  padding: 14px 16px;
+  box-shadow: var(--sh);
+}
+.resum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--fons);
+  font-size: 13px;
+}
+.resum-row:last-child { border-bottom: none; }
+.resum-key { color: var(--suau); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.resum-val { color: var(--text); font-family: var(--ff-m); font-size: 14px; font-weight: 700; }
+.resum-val.warn { color: #b45309; }
+.resum-val.ok   { color: var(--v-mig); }
+
+.parc-card {
+  background: var(--card);
+  border: 1px solid var(--borde);
+  border-radius: var(--r);
+  margin: 0 16px 12px;
+  padding: 13px 14px;
+  box-shadow: var(--sh);
+}
+.parc-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.parc-title  { font-weight: 700; font-size: 14px; color: var(--v-fosc); }
+.parc-sub    { font-size: 11px; color: var(--suau); margin-top: 3px; }
+.parc-stats  {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde);
+}
+.parc-stat     { text-align: center; min-width: 50px; }
+.parc-stat-val { font-size: 18px; font-weight: 700; color: var(--v); font-family: var(--ff-m); line-height: 1; }
+.parc-stat-lbl { font-size: 9px; color: var(--suau); text-transform: uppercase; letter-spacing: .8px; margin-top: 3px; }
+.parc-ts       { font-size: 10px; color: var(--suau); margin-top: 8px; font-style: italic; }
+
+.btn-del-parc {
+  background: #fee2e2;
+  color: var(--err);
+  border: 1px solid #fca5a5;
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--ff-s);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.btn-del-parc:active { background: var(--err); color: #fff; }
+
+.empty-list-msg {
+  text-align: center;
+  padding: 28px 20px;
+  color: var(--suau);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ============================================================
+   CREDITS
+   ============================================================ */
+.credits {
+  text-align: center;
+  margin: 30px 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--borde);
+}
+.credits p {
+  font-weight: 700;
+  color: var(--v-mig);
+  font-size: 13px;
+}
+
+/* Observations textarea */
+.obs-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--ff-s);
+  outline: none;
+  resize: none;
+  min-height: 60px;
+  padding: 4px 0;
+  line-height: 1.5;
+}
+
+/* Especie text input */
+.especie-text-row {
+  display: none;
+}
+.especie-text-row.visible {
+  display: flex;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <span class="navbar-title">🌲 Inventari Forestal PTGMF</span>
+  </nav>
+
+  <!-- CONTINGUT TABS -->
+  <div class="tabs-content">
+
+    <!-- ====================================================
+         TAB 1: GENERAL
+         ==================================================== -->
+    <div class="tab-panel active" id="tab-general">
+
+      <div class="block-title">Identificació</div>
+      <div class="list-group">
+        <div class="list-item">
+          <span class="item-label">Rodal / UA (*)</span>
+          <input class="item-input" id="ua" type="text" placeholder="Ex: Rodal 3">
+        </div>
+        <div class="list-item">
+          <span class="item-label">Codi parcel·la (*)</span>
+          <input class="item-input" id="codi" type="text" placeholder="Ex: P-001">
+        </div>
+        <div class="list-item">
+          <span class="item-label">Nom de la finca</span>
+          <input class="item-input" id="finca" type="text" placeholder="Ex: Can Roca">
+        </div>
+        <div class="list-item">
+          <span class="item-label">UTM 31N X (m)</span>
+          <input class="item-input" id="utm_x" type="number" placeholder="Ex: 358425">
+        </div>
+        <div class="list-item">
+          <span class="item-label">UTM 31N Y (m)</span>
+          <input class="item-input" id="utm_y" type="number" placeholder="Ex: 4642130">
+        </div>
+        <div class="list-item">
+          <span class="item-label">Radi mostreig (m)</span>
+          <input class="item-input" id="radi" type="number" value="10" step="0.5" min="1" max="50">
+        </div>
+      </div>
+
+      <div class="block-title">Topografia i sòl</div>
+      <div class="list-group">
+        <div class="list-item">
+          <span class="item-label">Altitud (m)</span>
+          <input class="item-input" id="altitud" type="number" value="500" step="10">
+        </div>
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Pendent (%)</span>
+            <span class="slider-val" id="pendent-val">0%</span>
+          </div>
+          <input type="range" id="pendent" min="0" max="100" value="0"
+                 oninput="document.getElementById('pendent-val').textContent=this.value+'%'">
+        </div>
+        <div class="list-item">
+          <span class="item-label">Orientació</span>
+          <select class="item-select" id="orientacio">
+            <option value="N">N</option>
+            <option value="NE">NE</option>
+            <option value="E">E</option>
+            <option value="SE">SE</option>
+            <option value="S">S</option>
+            <option value="SO">SO</option>
+            <option value="O">O</option>
+            <option value="NO">NO</option>
+            <option value="PL">Pla</option>
+          </select>
+        </div>
+        <div class="list-item">
+          <span class="item-label">Tipus de roca</span>
+          <select class="item-select" id="roca">
+            <option value="Calc">Calcària</option>
+            <option value="Gran">Granit</option>
+            <option value="Piss">Pissarres</option>
+            <option value="Gres">Grès</option>
+            <option value="Cong">Conglomerat</option>
+            <option value="Marg">Marga</option>
+            <option value="Alt">Altres</option>
+          </select>
+        </div>
+        <div class="list-item">
+          <span class="item-label">Erosió</span>
+          <select class="item-select" id="erosio">
+            <option value="0">Nul·la</option>
+            <option value="1">Superficial</option>
+            <option value="2">Xaragalls</option>
+            <option value="3">Rases V</option>
+            <option value="4">Rases U</option>
+            <option value="5">Lliscament</option>
+          </select>
+        </div>
+        <div class="list-item">
+          <span class="item-label">Pedregositat</span>
+          <select class="item-select" id="pedregositat">
+            <option value="0">Nul·la &lt;5%</option>
+            <option value="1">Lleugera 5-25%</option>
+            <option value="2">Moderada 25-50%</option>
+            <option value="3">Alta &gt;50%</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="credits"><p>🌳 Dissenyat per Martí Solé i Xanxo (M.S.X.) 🌳</p></div>
+    </div>
+
+    <!-- ====================================================
+         TAB 2: VEGETACIÓ
+         ==================================================== -->
+    <div class="tab-panel" id="tab-veg">
+
+      <div class="block-title">Estrat arbori</div>
+      <div class="list-group">
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Fcc Total (%)</span>
+            <span class="slider-val" id="fcc_total-val">70%</span>
+          </div>
+          <input type="range" id="fcc_total" min="0" max="100" value="70"
+                 oninput="document.getElementById('fcc_total-val').textContent=this.value+'%'">
+        </div>
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Fcc Arbori (%)</span>
+            <span class="slider-val" id="fcc_arbori-val">60%</span>
+          </div>
+          <input type="range" id="fcc_arbori" min="0" max="100" value="60"
+                 oninput="document.getElementById('fcc_arbori-val').textContent=this.value+'%'">
+        </div>
+      </div>
+
+      <div class="block-title">Estrat arbustiu</div>
+      <div class="list-group">
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="slider-label">Fcc Arbustiu (%)</span>
+            <span class="slider-val" id="fcc_arbustiu-val">20%</span>
+          </div>
+          <input type="range" id="fcc_arbustiu" min="0" max="100" value="20"
+                 oninput="document.getElementById('fcc_arbustiu-val').textContent=this.value+'%'">
+        </div>
+        <div class="list-item">
+          <span class="item-label">Alçada arbustiu (m)</span>
+          <input class="item-input" id="h_arbustiu" type="number" value="1" step="0.1" min="0">
+        </div>
+      </div>
+
+      <div class="block-title">Distribució i estat</div>
+      <div class="list-group">
+        <div class="list-item">
+          <span class="item-label">Distribució espacial</span>
+          <select class="item-select" id="dist_espacial">
+            <option value="1">Uniforme</option>
+            <option value="2">En clapes</option>
+            <option value="3">Individus aïllats</option>
+          </select>
+        </div>
+        <div class="list-item">
+          <span class="item-label">Regeneració natural</span>
+          <select class="item-select" id="regeneracio">
+            <option value="1">Abundant</option>
+            <option value="2">Moderada</option>
+            <option value="3">Escassa</option>
+            <option value="4">Nul·la</option>
+          </select>
+        </div>
+        <div class="list-item">
+          <span class="item-label">Estat sanitari</span>
+          <select class="item-select" id="estat_sanitari">
+            <option value="1">Bo</option>
+            <option value="2">Regular</option>
+            <option value="3">Dolent</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="block-title">Observacions</div>
+      <div class="list-group">
+        <div class="list-item" style="align-items:flex-start; padding: 12px 14px;">
+          <textarea class="obs-textarea" id="obs_veg"
+                    placeholder="Espècies, danys, invasores..."></textarea>
+        </div>
+      </div>
+
+      <div class="credits"><p>🌳 Dissenyat per Martí Solé i Xanxo (M.S.X.) 🌳</p></div>
+    </div>
+
+    <!-- ====================================================
+         TAB 3: ARBRES
+         ==================================================== -->
+    <div class="tab-panel" id="tab-arbres">
+
+      <!-- Dashboard -->
+      <div class="dashboard" id="dashboard">
+        <div class="dash-item">
+          <div class="dash-val" id="dash-N">0</div>
+          <div class="dash-lbl">N arbres</div>
+        </div>
+        <div class="dash-sep"></div>
+        <div class="dash-item">
+          <div class="dash-val" id="dash-G">0.00</div>
+          <div class="dash-lbl">G (m²/ha)</div>
+        </div>
+        <div class="dash-sep"></div>
+        <div class="dash-item">
+          <div class="dash-val" id="dash-Dg">-</div>
+          <div class="dash-lbl">Dg (cm)</div>
+        </div>
+        <div class="dash-sep"></div>
+        <div class="dash-item">
+          <div class="dash-val" id="dash-Hm">-</div>
+          <div class="dash-lbl">Hm (m)</div>
+        </div>
+      </div>
+
+      <div class="block-title">Afegir arbre</div>
+      <div class="card" style="padding: 0 0 8px;">
+
+        <!-- Espècie -->
+        <div class="list-item" style="border-bottom: 1px solid var(--borde);">
+          <span class="item-label">Espècie</span>
+          <select class="item-select" id="especie" onchange="onEspecieChange()">
+            <option value="Psy">Pinus sylvestris</option>
+            <option value="Pni">Pinus nigra</option>
+            <option value="Pha">Pinus halepensis</option>
+            <option value="Ppi">Pinus pinaster</option>
+            <option value="Ppn">Pinus pinea</option>
+            <option value="Pun">Pinus uncinata</option>
+            <option value="Qil">Quercus ilex</option>
+            <option value="Qpu">Quercus pubescens</option>
+            <option value="Qsu">Quercus suber</option>
+            <option value="Qce">Quercus cerrioides</option>
+            <option value="Fsy">Fagus sylvatica</option>
+            <option value="Aal">Abies alba</option>
+            <option value="Pop">Populus sp.</option>
+            <option value="Rob">Robinia pseudoacacia</option>
+            <option value="ALT">Altres</option>
+          </select>
+        </div>
+        <!-- Espècie text (si ALT) -->
+        <div class="list-item especie-text-row" id="especie-text-row" style="border-bottom: 1px solid var(--borde);">
+          <span class="item-label">Nom espècie</span>
+          <input class="item-input" id="especie_text" type="text" placeholder="Nom científic o comú">
+        </div>
+
+        <!-- Toggle mantenir espècie -->
+        <div class="toggle-row">
+          <div class="toggle-labels">
+            <span class="toggle-main">Mantenir espècie</span>
+            <span class="toggle-sub">No reseteja en afegir</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="mantenir_especie">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- DN input -->
+        <div class="dn-wrapper">
+          <div class="dn-label">Diàmetre Normal DN (cm)</div>
+          <input id="dn_text" type="number" inputmode="decimal" class="dn-input"
+                 placeholder="Ex: 22.5" step="0.1" min="7.5" max="250"
+                 oninput="onDnInput()">
+        </div>
+
+        <!-- Dreceres DN -->
+        <div class="block-title" style="margin-top: 10px;">Dreceres DN (cm)</div>
+        <div class="dn-grid" id="dn-grid"></div>
+
+        <!-- H arbre -->
+        <div class="dn-wrapper" style="padding: 8px 16px;">
+          <div class="dn-label">Alçada H (m) [Opcional ~3 arbres/parcel·la]</div>
+          <input id="h_arbre" type="number" inputmode="decimal"
+                 class="dn-input" style="font-size: 20px; padding: 10px;"
+                 placeholder="Deixar buit si no es mesura" step="0.5" min="0">
+        </div>
+
+        <!-- Vigor -->
+        <div class="list-item" style="border-top: 1px solid var(--borde);">
+          <span class="item-label">Posició sociològica</span>
+          <select class="item-select" id="vigor">
+            <option value="1">Dominant</option>
+            <option value="2">Codominant</option>
+            <option value="3">Intermedi</option>
+            <option value="4">Suprimit</option>
+            <option value="5">Mort dret</option>
+            <option value="6">Mort caigut</option>
+          </select>
+        </div>
+        <!-- Fitosanitari -->
+        <div class="list-item" style="border-top: 1px solid var(--borde);">
+          <span class="item-label">Estat fitosanitari</span>
+          <select class="item-select" id="fitosan">
+            <option value="1">Sa</option>
+            <option value="2">Debilitat lleu</option>
+            <option value="3">Debilitat greu</option>
+            <option value="4">Plaga-Malaltia</option>
+            <option value="5">Mort recent</option>
+          </select>
+        </div>
+        <!-- Obs arbre -->
+        <div class="list-item" style="border-top: 1px solid var(--borde); align-items:flex-start;">
+          <span class="item-label">Obs. arbre</span>
+          <textarea class="obs-textarea" id="obs_arbre"
+                    placeholder="bifurcat, cavitat, dany..."></textarea>
+        </div>
+
+        <!-- Botó afegir -->
+        <button class="btn-acc btn-disabled" id="btn-add" onclick="afegirArbre()" style="margin-top:10px;"
+                disabled>+ Afegir arbre (DN invàlid o buit)</button>
+      </div>
+
+      <!-- Taula arbres -->
+      <div class="block-title" id="titol-arbres">Arbres d'aquesta parcel·la: 0</div>
+      <div class="card" style="overflow-x: auto; padding: 0;">
+        <div id="taula-wrapper" style="overflow-x:auto;">
+          <p style="color:#9ca3af;font-style:italic;padding:14px 16px;font-size:13px;" id="taula-empty">
+            Cap arbre afegit.
+          </p>
+          <table class="taula-arb" id="taula-arbres" style="display:none;">
+            <thead>
+              <tr>
+                <th>Espècie</th><th>DN(cm)</th><th>H(m)</th>
+                <th>Vigor</th><th>AB(m²)</th><th>Obs</th>
+              </tr>
+            </thead>
+            <tbody id="taula-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <button class="btn-acc btn-danger" id="btn-esborrar-darrer" style="display:none;"
+              onclick="esborrarDarrer()">Eliminar darrer arbre</button>
+
+      <div class="credits"><p>🌳 Dissenyat per Martí Solé i Xanxo (M.S.X.) 🌳</p></div>
+    </div>
+
+    <!-- ====================================================
+         TAB 4: DESAR
+         ==================================================== -->
+    <div class="tab-panel" id="tab-desar">
+
+      <div class="block-title">Parcel·la actual</div>
+      <div class="resum-guard" id="resum-actual"></div>
+
+      <button class="btn-acc btn-disabled" id="btn-desar" onclick="desarParcella()" disabled>
+        💾 Desar (cal Rodal + Codi + almenys 1 arbre)
+      </button>
+
+      <div class="msg-inf" id="msg-desar" style="display:none;"></div>
+
+      <div class="block-title" id="titol-desades">Parcel·les desades (0)</div>
+      <div id="llista-desades">
+        <div class="empty-list-msg">📋 Cap parcel·la desada encara. Emplena les dades i prem 'Desar'.</div>
+      </div>
+
+      <!-- Botó Descarregar Excel -->
+      <div style="margin: 4px 16px 8px;">
+        <button class="btn-acc btn-outline" onclick="descarregarExcel()">
+          ↓ Descarregar Excel de totes les parcel·les
+        </button>
+      </div>
+
+      <button class="btn-acc btn-danger" id="btn-esborrar-tot" style="display:none;"
+              onclick="esborrarTot()">
+        ⚠️ Eliminar totes les parcel·les desades
+      </button>
+
+      <div class="credits"><p>🌳 Dissenyat per Martí Solé i Xanxo (M.S.X.) 🌳</p></div>
+    </div>
+
+  </div><!-- /tabs-content -->
+
+  <!-- TABBAR -->
+  <nav class="tabbar">
+    <button class="tab-btn active" id="tbtn-general" onclick="switchTab('general')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      General
+    </button>
+    <button class="tab-btn" id="tbtn-veg" onclick="switchTab('veg')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22V12M12 12C12 7 7 3 2 3c0 5 3.5 9 8 10M12 12c0-5 5-9 10-9-1 5-4.5 9-10 10"/>
+      </svg>
+      Vegetació
+    </button>
+    <button class="tab-btn" id="tbtn-arbres" onclick="switchTab('arbres')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      Arbres
+    </button>
+    <button class="tab-btn" id="tbtn-desar" onclick="switchTab('desar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Desar
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   ESTAT DE L'APLICACIÓ
+   ============================================================ */
+const state = {
+  arbres: [],           // arbres parcel·la actual
+  parcelles: [],        // parcel·les desades
+};
+
+// Dreceres DN
+const DN_DRECERES = [10, 12.5, 15, 17.5, 20, 25, 30, 35, 40, 50];
+
+// Noms vigor i fitosan
+const VIGOR_NOMS = {
+  '1':'Dominant','2':'Codominant','3':'Intermedi',
+  '4':'Suprimit','5':'Mort dret','6':'Mort caigut'
+};
+const FITOSAN_NOMS = {
+  '1':'Sa','2':'Debilitat lleu','3':'Debilitat greu',
+  '4':'Plaga-Malaltia','5':'Mort recent'
+};
+const ESPECIE_NOMS = {
+  'Psy':'Pinus sylvestris','Pni':'Pinus nigra','Pha':'Pinus halepensis',
+  'Ppi':'Pinus pinaster','Ppn':'Pinus pinea','Pun':'Pinus uncinata',
+  'Qil':'Quercus ilex','Qpu':'Quercus pubescens','Qsu':'Quercus suber',
+  'Qce':'Quercus cerrioides','Fsy':'Fagus sylvatica','Aal':'Abies alba',
+  'Pop':'Populus sp.','Rob':'Robinia pseudoacacia','ALT':'Altres'
+};
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+  // Generar dreceres DN
+  const grid = document.getElementById('dn-grid');
+  DN_DRECERES.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className = 'dn-btn';
+    btn.textContent = v;
+    btn.onclick = () => {
+      const el = document.getElementById('dn_text');
+      el.value = v;
+      el.classList.remove('invalid');
+      onDnInput();
+    };
+    grid.appendChild(btn);
+  });
+
+  // Cargar de localStorage si hi ha dades
+  try {
+    const saved = localStorage.getItem('ptgmf_parcelles');
+    if (saved) state.parcelles = JSON.parse(saved);
+  } catch(e) {}
+
+  renderResum();
+  renderDesades();
+  renderDashboard();
+});
+
+/* ============================================================
+   NAVEGACIÓ TABS
+   ============================================================ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('tbtn-' + name).classList.add('active');
+
+  if (name === 'desar') {
+    renderResum();
+    renderDesades();
+  }
+}
+
+/* ============================================================
+   CÀLCUL DAS
+   ============================================================ */
+function calcDas(arbres, radi) {
+  const n = arbres.length;
+  if (n === 0) return { N: 0, G: 0, Dg: null, Hm: null };
+  const r = parseFloat(radi) || 10;
+  const k = 10000 / (Math.PI * r * r);
+  let sumG = 0, sumDN2 = 0, sumH = 0, nH = 0;
+  arbres.forEach(a => {
+    const dn = parseFloat(a.DN_cm);
+    sumG   += Math.PI * Math.pow(dn / 200, 2);
+    sumDN2 += dn * dn;
+    if (a.H_m !== null && a.H_m !== undefined && !isNaN(a.H_m)) {
+      sumH += parseFloat(a.H_m); nH++;
+    }
+  });
+  const G  = +(sumG * k).toFixed(2);
+  const Dg = +(Math.sqrt(sumDN2 / n)).toFixed(1);
+  const Hm = nH > 0 ? +(sumH / nH).toFixed(1) : null;
+  return { N: n, G, Dg, Hm };
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function renderDashboard() {
+  const radi = document.getElementById('radi').value || 10;
+  const d = calcDas(state.arbres, radi);
+  document.getElementById('dash-N').textContent  = d.N;
+  document.getElementById('dash-G').textContent  = d.G.toFixed(2);
+  document.getElementById('dash-Dg').textContent = d.Dg !== null ? d.Dg.toFixed(1) : '-';
+  document.getElementById('dash-Hm').textContent = d.Hm !== null ? d.Hm.toFixed(1) : '-';
+}
+
+/* ============================================================
+   VALIDACIÓ DN
+   ============================================================ */
+function onDnInput() {
+  const el  = document.getElementById('dn_text');
+  const btn = document.getElementById('btn-add');
+  const v   = parseFloat(el.value);
+  const ok  = !isNaN(v) && v >= 7.5 && v <= 250;
+  if (ok) {
+    el.classList.remove('invalid');
+    btn.textContent = '+ Afegir arbre';
+    btn.className   = 'btn-acc btn-add';
+    btn.disabled    = false;
+  } else {
+    el.classList.toggle('invalid', el.value !== '');
+    btn.textContent = '+ Afegir arbre (DN invàlid o buit)';
+    btn.className   = 'btn-acc btn-disabled';
+    btn.disabled    = true;
+  }
+}
+
+function onEspecieChange() {
+  const val = document.getElementById('especie').value;
+  const row = document.getElementById('especie-text-row');
+  row.classList.toggle('visible', val === 'ALT');
+}
+
+/* ============================================================
+   AFEGIR ARBRE
+   ============================================================ */
+function afegirArbre() {
+  const dnEl = document.getElementById('dn_text');
+  const dn   = parseFloat(dnEl.value);
+  if (isNaN(dn) || dn < 7.5 || dn > 250) return;
+
+  const hVal  = parseFloat(document.getElementById('h_arbre').value);
+  const hFin  = isNaN(hVal) ? null : hVal;
+
+  const espVal  = document.getElementById('especie').value;
+  let espFinal;
+  if (espVal === 'ALT') {
+    const txt = document.getElementById('especie_text').value.trim();
+    espFinal = txt || 'Altres';
+  } else {
+    espFinal = ESPECIE_NOMS[espVal] || espVal;
+  }
+
+  const vigorVal   = document.getElementById('vigor').value;
+  const fitosanVal = document.getElementById('fitosan').value;
+  const obsVal     = document.getElementById('obs_arbre').value.trim();
+
+  const arbre = {
+    Especie: espFinal,
+    DN_cm:   dn,
+    H_m:     hFin,
+    Vigor:   VIGOR_NOMS[vigorVal]   || vigorVal,
+    FitoSan: FITOSAN_NOMS[fitosanVal] || fitosanVal,
+    Obs:     obsVal,
+    AB_m2:   +(Math.PI * Math.pow(dn / 200, 2)).toFixed(4)
+  };
+
+  state.arbres.push(arbre);
+
+  // Reset camps
+  if (!document.getElementById('mantenir_especie').checked) {
+    document.getElementById('especie').value = 'Psy';
+    onEspecieChange();
+  }
+  dnEl.value = '';
+  dnEl.classList.remove('invalid');
+  document.getElementById('h_arbre').value   = '';
+  document.getElementById('obs_arbre').value = '';
+
+  // Reset botó
+  const btn = document.getElementById('btn-add');
+  btn.textContent = '+ Afegir arbre (DN invàlid o buit)';
+  btn.className   = 'btn-acc btn-disabled';
+  btn.disabled    = true;
+
+  renderTaulaArbres();
+  renderDashboard();
+
+  const hMsg = hFin !== null ? ` H=${hFin}m` : '';
+  showToast(`✅ Afegit: ${espFinal} DN=${dn}cm${hMsg}`);
+}
+
+/* ============================================================
+   ESBORRAR DARRER ARBRE
+   ============================================================ */
+function esborrarDarrer() {
+  if (state.arbres.length > 0) {
+    state.arbres.pop();
+    renderTaulaArbres();
+    renderDashboard();
+  }
+}
+
+/* ============================================================
+   RENDERITZAR TAULA ARBRES
+   ============================================================ */
+function renderTaulaArbres() {
+  const tbody  = document.getElementById('taula-body');
+  const taula  = document.getElementById('taula-arbres');
+  const empty  = document.getElementById('taula-empty');
+  const btn    = document.getElementById('btn-esborrar-darrer');
+  const titol  = document.getElementById('titol-arbres');
+
+  titol.textContent = `Arbres d'aquesta parcel·la: ${state.arbres.length}`;
+
+  if (state.arbres.length === 0) {
+    taula.style.display = 'none';
+    empty.style.display = 'block';
+    btn.style.display   = 'none';
+    tbody.innerHTML     = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  taula.style.display = 'table';
+  btn.style.display   = 'block';
+
+  tbody.innerHTML = state.arbres.map(a => {
+    const hText   = a.H_m !== null && a.H_m !== undefined ? a.H_m : '-';
+    const obsText = a.Obs || '-';
+    return `<tr>
+      <td>${a.Especie}</td>
+      <td>${a.DN_cm}</td>
+      <td>${hText}</td>
+      <td>${a.Vigor}</td>
+      <td>${a.AB_m2}</td>
+      <td>${obsText}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ============================================================
+   RESUM TAB DESAR
+   ============================================================ */
+function renderResum() {
+  const ua    = document.getElementById('ua').value.trim();
+  const codi  = document.getElementById('codi').value.trim();
+  const finca = document.getElementById('finca').value.trim();
+  const n     = state.arbres.length;
+  const radi  = document.getElementById('radi').value || 10;
+  const d     = calcDas(state.arbres, radi);
+
+  const uaCls   = ua   ? 'ok' : 'warn';
+  const codiCls = codi ? 'ok' : 'warn';
+  const arbCls  = n > 0 ? 'ok' : 'warn';
+
+  let html = `
+    <div class="resum-row">
+      <span class="resum-key">Rodal / UA</span>
+      <span class="resum-val ${uaCls}">${ua || '(buit - obligatori)'}</span>
+    </div>
+    <div class="resum-row">
+      <span class="resum-key">Codi parcel·la</span>
+      <span class="resum-val ${codiCls}">${codi || '(buit - obligatori)'}</span>
+    </div>`;
+
+  if (finca) {
+    html += `<div class="resum-row">
+      <span class="resum-key">Finca</span>
+      <span class="resum-val">${finca}</span>
+    </div>`;
+  }
+
+  html += `<div class="resum-row">
+    <span class="resum-key">Arbres introduïts</span>
+    <span class="resum-val ${arbCls}">${n}</span>
+  </div>`;
+
+  if (n > 0) {
+    html += `<div class="resum-row">
+      <span class="resum-key">G actual (m²/ha)</span>
+      <span class="resum-val">${d.G.toFixed(2)}</span>
+    </div>`;
+  }
+
+  document.getElementById('resum-actual').innerHTML = html;
+
+  // Botó desar
+  const potDesar = ua && codi && n > 0;
+  const btnDesar = document.getElementById('btn-desar');
+  if (potDesar) {
+    btnDesar.textContent = '💾 Desar parcel·la i començar una de nova';
+    btnDesar.className   = 'btn-acc btn-add';
+    btnDesar.disabled    = false;
+  } else {
+    btnDesar.textContent = '💾 Desar (cal Rodal + Codi + almenys 1 arbre)';
+    btnDesar.className   = 'btn-acc btn-disabled';
+    btnDesar.disabled    = true;
+  }
+
+  // Missatge informatiu
+  const msg = document.getElementById('msg-desar');
+  if (state.parcelles.length === 0) {
+    msg.style.display = 'block';
+    msg.textContent   = 'Introdueix les dades de la parcel·la i afegeix almenys un arbre, després prem "Desar" per guardar-la i començar una de nova.';
+  } else {
+    msg.style.display = 'none';
+  }
+}
+
+/* ============================================================
+   DESAR PARCEL·LA
+   ============================================================ */
+function desarParcella() {
+  const ua    = document.getElementById('ua').value.trim();
+  const codi  = document.getElementById('codi').value.trim();
+  const finca = document.getElementById('finca').value.trim();
+
+  if (!ua || !codi || state.arbres.length === 0) return;
+
+  const now  = new Date();
+  const pad  = n => String(n).padStart(2, '0');
+  const ts   = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const nova = {
+    ua, codi, finca,
+    utm_x:          document.getElementById('utm_x').value.trim(),
+    utm_y:          document.getElementById('utm_y').value.trim(),
+    radi:           parseFloat(document.getElementById('radi').value) || 10,
+    altitud:        parseFloat(document.getElementById('altitud').value) || 500,
+    pendent:        parseInt(document.getElementById('pendent').value) || 0,
+    orientacio:     document.getElementById('orientacio').value,
+    roca:           document.getElementById('roca').value,
+    erosio:         document.getElementById('erosio').value,
+    pedregositat:   document.getElementById('pedregositat').value,
+    fcc_total:      parseInt(document.getElementById('fcc_total').value) || 70,
+    fcc_arbori:     parseInt(document.getElementById('fcc_arbori').value) || 60,
+    fcc_arbustiu:   parseInt(document.getElementById('fcc_arbustiu').value) || 20,
+    h_arbustiu:     parseFloat(document.getElementById('h_arbustiu').value) || 1,
+    dist_espacial:  document.getElementById('dist_espacial').value,
+    regeneracio:    document.getElementById('regeneracio').value,
+    estat_sanitari: document.getElementById('estat_sanitari').value,
+    obs_veg:        document.getElementById('obs_veg').value.trim(),
+    arbres:         JSON.parse(JSON.stringify(state.arbres)),
+    timestamp:      ts
+  };
+
+  state.parcelles.push(nova);
+  guardarLocalStorage();
+
+  // Reset formulari
+  resetFormulari();
+
+  renderTaulaArbres();
+  renderDashboard();
+  renderDesades();
+  renderResum();
+
+  showToast(`✅ Parcel·la '${codi}' desada! Podeu començar una nova.`, 3500);
+}
+
+/* ============================================================
+   RESET FORMULARI COMPLET
+   ============================================================ */
+function resetFormulari() {
+  // Identificació
+  ['ua','codi','finca','utm_x','utm_y'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('radi').value    = '10';
+  document.getElementById('altitud').value = '500';
+
+  // Topografia sliders
+  const pendent = document.getElementById('pendent');
+  pendent.value = '0';
+  document.getElementById('pendent-val').textContent = '0%';
+
+  document.getElementById('orientacio').value    = 'N';
+  document.getElementById('roca').value          = 'Calc';
+  document.getElementById('erosio').value        = '0';
+  document.getElementById('pedregositat').value  = '0';
+
+  // Vegetació sliders
+  const fcc_total = document.getElementById('fcc_total');
+  fcc_total.value = '70';
+  document.getElementById('fcc_total-val').textContent = '70%';
+
+  const fcc_arbori = document.getElementById('fcc_arbori');
+  fcc_arbori.value = '60';
+  document.getElementById('fcc_arbori-val').textContent = '60%';
+
+  const fcc_arbustiu = document.getElementById('fcc_arbustiu');
+  fcc_arbustiu.value = '20';
+  document.getElementById('fcc_arbustiu-val').textContent = '20%';
+
+  document.getElementById('h_arbustiu').value     = '1';
+  document.getElementById('dist_espacial').value  = '1';
+  document.getElementById('regeneracio').value    = '1';
+  document.getElementById('estat_sanitari').value = '1';
+  document.getElementById('obs_veg').value        = '';
+
+  // Arbres
+  state.arbres = [];
+}
+
+/* ============================================================
+   RENDERITZAR PARCEL·LES DESADES
+   ============================================================ */
+function renderDesades() {
+  const n = state.parcelles.length;
+  document.getElementById('titol-desades').textContent = `Parcel·les desades (${n})`;
+
+  const btnEsborrarTot = document.getElementById('btn-esborrar-tot');
+  btnEsborrarTot.style.display = n > 0 ? 'block' : 'none';
+
+  const cont = document.getElementById('llista-desades');
+  if (n === 0) {
+    cont.innerHTML = '<div class="empty-list-msg">📋 Cap parcel·la desada encara. Emplena les dades i prem "Desar".</div>';
+    return;
+  }
+
+  // Mostrar en ordre invers (últim primer)
+  const html = [...state.parcelles].reverse().map((p, iRev) => {
+    const idx = state.parcelles.length - 1 - iRev; // index real
+    const radi = p.radi || 10;
+    const d = calcDas(p.arbres || [], radi);
+    const fincaHtml = p.finca ? `<div class="parc-sub">🏡 ${esc(p.finca)}</div>` : '';
+    return `
+    <div class="parc-card">
+      <div class="parc-header">
+        <div>
+          <div class="parc-title">${esc(p.ua)} — ${esc(p.codi)}</div>
+          ${fincaHtml}
+        </div>
+        <button class="btn-del-parc" onclick="eliminarParcella(${idx})">Eliminar</button>
+      </div>
+      <div class="parc-stats">
+        <div class="parc-stat">
+          <div class="parc-stat-val">${d.N}</div>
+          <div class="parc-stat-lbl">N arbres</div>
+        </div>
+        <div class="parc-stat">
+          <div class="parc-stat-val">${d.G.toFixed(2)}</div>
+          <div class="parc-stat-lbl">G (m²/ha)</div>
+        </div>
+        <div class="parc-stat">
+          <div class="parc-stat-val">${d.Dg !== null ? d.Dg.toFixed(1) : '-'}</div>
+          <div class="parc-stat-lbl">Dg (cm)</div>
+        </div>
+        <div class="parc-stat">
+          <div class="parc-stat-val">${d.Hm !== null ? d.Hm.toFixed(1) : '-'}</div>
+          <div class="parc-stat-lbl">Hm (m)</div>
+        </div>
+      </div>
+      <div class="parc-ts">📅 Desada: ${esc(p.timestamp)}</div>
+    </div>`;
+  }).join('');
+
+  cont.innerHTML = html;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+/* ============================================================
+   ELIMINAR PARCEL·LA
+   ============================================================ */
+function eliminarParcella(idx) {
+  const nom = state.parcelles[idx] ? state.parcelles[idx].codi : '';
+  state.parcelles.splice(idx, 1);
+  guardarLocalStorage();
+  renderDesades();
+  renderResum();
+  showToast(`Parcel·la '${nom}' eliminada.`);
+}
+
+/* ============================================================
+   ESBORRAR TOT
+   ============================================================ */
+function esborrarTot() {
+  if (!confirm('Estàs segur que vols eliminar TOTES les parcel·les desades?')) return;
+  state.parcelles = [];
+  guardarLocalStorage();
+  renderDesades();
+  renderResum();
+  showToast('Totes les parcel·les desades han estat eliminades.');
+}
+
+/* ============================================================
+   LOCAL STORAGE
+   ============================================================ */
+function guardarLocalStorage() {
+  try {
+    localStorage.setItem('ptgmf_parcelles', JSON.stringify(state.parcelles));
+  } catch(e) {
+    console.warn('Error guardant a localStorage:', e);
+  }
+}
+
+/* ============================================================
+   DESCARREGAR EXCEL (SheetJS)
+   ============================================================ */
+function descarregarExcel() {
+  const pd = state.parcelles;
+
+  // Pestanya 1: Parcel·les
+  const capParc = [
+    'ID_Parcella','Rodal_UA','Finca','UTM_X','UTM_Y','Radi_m',
+    'Altitud_m','Pendent_pct','Orientacio','Roca','Erosio','Pedregositat',
+    'Fcc_total_pct','Fcc_arbori_pct','Fcc_arbustiu_pct','H_arbustiu_m',
+    'Dist_espacial','Regeneracio','Estat_sanitari','Obs_vegetacio','Timestamp'
+  ];
+
+  const rowsParc = pd.map(p => [
+    `${p.finca}_${p.codi}`, p.ua, p.finca, p.utm_x, p.utm_y,
+    p.radi, p.altitud, p.pendent, p.orientacio, p.roca, p.erosio, p.pedregositat,
+    p.fcc_total, p.fcc_arbori, p.fcc_arbustiu, p.h_arbustiu,
+    p.dist_espacial, p.regeneracio, p.estat_sanitari, p.obs_veg, p.timestamp
+  ]);
+
+  const wsParc = XLSX.utils.aoa_to_sheet([capParc, ...rowsParc]);
+
+  // Amplades columnes
+  wsParc['!cols'] = capParc.map(h => ({ wch: Math.max(h.length + 2, 14) }));
+
+  // Estil capçalera (color verd)
+  const greenFill = { fgColor: { rgb: '2d6a4f' } };
+  const whiteFont = { color: { rgb: 'FFFFFF' }, bold: true };
+  capParc.forEach((_, ci) => {
+    const addr = XLSX.utils.encode_cell({ r: 0, c: ci });
+    if (!wsParc[addr]) return;
+    wsParc[addr].s = { fill: greenFill, font: whiteFont, alignment: { horizontal: 'center' } };
+  });
+
+  // Pestanya 2: Arbres
+  const capArb = ['ID_Parcella','Especie','DN_cm','H_m','Vigor','FitoSan','AB_m2','Obs'];
+  const rowsArb = [];
+  pd.forEach(p => {
+    const idParc = `${p.finca}_${p.codi}`;
+    (p.arbres || []).forEach(a => {
+      rowsArb.push([
+        idParc, a.Especie, a.DN_cm,
+        a.H_m !== null && a.H_m !== undefined ? a.H_m : '',
+        a.Vigor, a.FitoSan, a.AB_m2, a.Obs || ''
+      ]);
+    });
+  });
+
+  const wsArb = XLSX.utils.aoa_to_sheet([capArb, ...rowsArb]);
+  wsArb['!cols'] = capArb.map(h => ({ wch: Math.max(h.length + 2, 14) }));
+  capArb.forEach((_, ci) => {
+    const addr = XLSX.utils.encode_cell({ r: 0, c: ci });
+    if (!wsArb[addr]) return;
+    wsArb[addr].s = { fill: greenFill, font: whiteFont, alignment: { horizontal: 'center' } };
+  });
+
+  // Crear workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsParc, 'Parcel·les');
+  XLSX.utils.book_append_sheet(wb, wsArb, 'Arbres');
+
+  // Nom fitxer
+  const finca0 = pd.length > 0 && pd[0].finca
+    ? pd[0].finca.replace(/[^A-Za-z0-9_-]/g,'_')
+    : 'inventari_PTGMF';
+  const avui = new Date();
+  const data = `${avui.getFullYear()}${String(avui.getMonth()+1).padStart(2,'0')}${String(avui.getDate()).padStart(2,'0')}`;
+  const nom = `${finca0}_${data}.xlsx`;
+
+  XLSX.writeFile(wb, nom);
+  showToast(`📥 Excel descarregat: ${nom}`);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+let toastTimer = null;
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ============================================================
+   SERVICE WORKER (PWA offline)
+   ============================================================ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .catch(e => console.log('SW no disponible:', e));
+  });
+}
+</script>
+</body>
+</html>
